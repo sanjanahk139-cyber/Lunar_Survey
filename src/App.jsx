@@ -25,6 +25,19 @@ function App() {
       return;
     }
 
+    const configuredBackendUrl = import.meta.env.VITE_BACKEND_URL?.trim();
+    const backendBaseUrl = (
+      configuredBackendUrl ||
+      (import.meta.env.DEV ? 'http://localhost:5001' : '')
+    ).replace(/\/+$/, '');
+
+    if (!backendBaseUrl) {
+      setError(
+        'Analysis is unavailable: configure VITE_BACKEND_URL with your deployed backend URL.'
+      );
+      return;
+    }
+
     setIsLoading(true);
     setError('');
     setResults(null);
@@ -35,10 +48,6 @@ function App() {
     formData.append('image', selectedImageFile);
 
     try {
-      // Backend URL comes from frontend .env with a local fallback
-      const backendBaseUrl = (
-        import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001'
-      ).replace(/\/$/, '');
       const backendUrl = `${backendBaseUrl}/analyze`;
 
       console.log('Backend URL:', backendUrl);
@@ -72,7 +81,7 @@ function App() {
       console.error('Analysis error:', err);
 
       setError(
-        `Analysis failed: ${err.message}. Make sure the backend server and Cloudflare tunnel are running.`
+        `Analysis failed: ${err.message}. Check that the backend is running and VITE_BACKEND_URL points to it.`
       );
     } finally {
       setIsLoading(false);
