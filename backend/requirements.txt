@@ -7,3 +7,4 @@ pandas
 xmltodict
 torch
 torchvision
+gunicorn

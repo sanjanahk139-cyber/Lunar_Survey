@@ -6,6 +6,7 @@ import os
 import math
 import base64
 import json
+import tempfile
 from pathlib import Path
 
 import cv2
@@ -736,7 +737,23 @@ def analyze_and_display_results(
 
 app = Flask(__name__)
 
-CORS(app)
+frontend_origins = [
+    origin.strip().rstrip("/")
+    for origin in os.environ.get(
+        "FRONTEND_ORIGIN",
+        "http://localhost:5173,http://127.0.0.1:5173"
+    ).split(",")
+    if origin.strip()
+]
+
+CORS(
+    app,
+    resources={
+        r"/*": {
+            "origins": frontend_origins
+        }
+    }
+)
 
 
 # ============================================================
@@ -827,10 +844,14 @@ def analyze_image_endpoint():
             image_file.filename
         ).name
 
-        image_path = (
-            UPLOAD_FOLDER /
-            filename
+        upload = tempfile.NamedTemporaryFile(
+            prefix="upload-",
+            suffix=Path(filename).suffix,
+            dir=UPLOAD_FOLDER,
+            delete=False
         )
+        image_path = Path(upload.name)
+        upload.close()
 
         image_file.save(
             str(image_path)
