@@ -187,7 +187,8 @@ Returns service status and version information.
 
 ### Frontend environment
 
-The frontend uses the `.env` file at the project root.
+The frontend reads `VITE_BACKEND_URL` from the project-root environment at
+build time.
 
 Current value:
 
@@ -195,9 +196,54 @@ Current value:
 VITE_BACKEND_URL=http://localhost:5001
 ```
 
-This tells the React app where to send the analysis request.
+For local development, use `http://localhost:5001`. For the deployed frontend,
+set this to the Render service URL (without `/analyze` or a trailing slash)
+and redeploy Vercel. Changing a Vercel environment variable does not change an
+already-built deployment.
 
-If the local backend is not running or if the URL is incorrect, requests will fail with a fetch error.
+## Deploy the backend to Render
+
+The repository includes a `render.yaml` Blueprint configuration. It creates a
+Python web service from `backend/`, installs the backend requirements, serves
+the Flask app with Gunicorn, and allows requests from the current Vercel
+frontend. The model weights and metadata are inside `backend/` and are included
+in the service.
+
+1. Push the latest project changes to the GitHub repository connected to
+   Vercel.
+2. Sign in to Render and choose **New** > **Blueprint**.
+3. Connect the GitHub repository and select the branch to deploy. Render reads
+   `render.yaml` and creates the `lunar-survey-backend` web service.
+4. Wait for the first build and deploy to finish. The initial build can take
+   several minutes because PyTorch and the YOLO dependencies are large.
+5. Open the Render service URL, for example
+   `https://lunar-survey-backend.onrender.com`. Visit its root (`/`) and verify
+   it returns JSON containing `"status": "running"`.
+6. In Vercel, open the frontend project's **Settings** > **Environment
+   Variables**. Set `VITE_BACKEND_URL` to the Render service URL, for example
+   `https://lunar-survey-backend.onrender.com`. Do not add `/analyze` or a
+   trailing slash. Apply it to Production, and Preview too if needed.
+7. Redeploy the Vercel frontend so the new environment variable is included in
+   its build.
+8. Open the Vercel site, upload an image, and run an analysis. If the browser
+   reports a CORS error, verify Render's `FRONTEND_ORIGIN` environment variable
+   exactly matches `https://lunar-survey-a1ym.vercel.app`, then redeploy the
+   backend.
+
+For manual setup instead of using the Blueprint, create a **New Web Service**
+from the same repository and configure:
+
+- **Root Directory:** `backend`
+- **Runtime:** Python
+- **Build Command:** `pip install -r requirements.txt`
+- **Start Command:** `gunicorn --workers 1 --threads 1 --timeout 300 --bind 0.0.0.0:$PORT main:app`
+- **Environment Variables:** `PYTHON_VERSION` = `3.11.11`;
+  `FRONTEND_ORIGIN` = `https://lunar-survey-a1ym.vercel.app`
+
+Choose an instance with enough memory for PyTorch and both YOLO models. Small
+free instances may run out of memory while loading models or analyzing images.
+Render's service filesystem is ephemeral, but uploaded images are temporary
+and deleted after each request.
 
 ## Dependencies
 
@@ -225,6 +271,7 @@ pandas
 xmltodict
 torch
 torchvision
+gunicorn
 ```
 
 ## Setup Instructions
@@ -338,12 +385,14 @@ The app emits summaries and measurement values in kilometers, using the metadata
 
 ## Current Status
 
-The application is configured to run successfully in a local development environment using:
+The application supports local development and production deployment using:
 
 - frontend: Vite React app
 - backend: Flask API on `localhost:5001`
+- production backend: Gunicorn on Render
 
-This local setup ensures stable testing and proper full-stack operation without relying on an external tunnel or broken remote URL.
+Local development still uses `localhost:5001`; production requests are sent to
+the Render URL configured in Vercel.
 
 ## Troubleshooting
 
@@ -361,11 +410,14 @@ Check:
 python backend/main.py
 ```
 
-and confirm `.env` contains:
+and confirm the project-root `.env` contains:
 
 ```env
 VITE_BACKEND_URL=http://localhost:5001
 ```
+
+For the deployed site, verify that Vercel has the Render URL set as
+`VITE_BACKEND_URL` and that the frontend was redeployed after setting it.
 
 ### Model or metadata not found
 
@@ -388,7 +440,6 @@ Possible future enhancements include:
 - image comparison and historical analysis
 - more advanced crater/boulder segmentation
 - improved measurement calibration
-- deployment configuration for production hosting
 
 ## License
 
